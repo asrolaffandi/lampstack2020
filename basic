@@ -1,0 +1,211 @@
+INSTALL APACHE HTTPD WITH MOD SSL
+
+yum install httpd mod_ssl -y
+
+systemctl restart httpd
+
+systemctl enable httpd && systemctl start httpd
+
+apachectl -M | grep ssl
+
+firewall-cmd --zone=public --permanent --add-service=http
+firewall-cmd --zone=public --permanent --add-service=https
+
+firewall-cmd --reload
+
+
+openssl req -newkey rsa:2048 -nodes -keyout /etc/pki/tls/private/httpd.key -x509 -days 365 -out /etc/pki/tls/certs/httpd.crt
+
+ls -l /etc/pki/tls/private/httpd.key /etc/pki/tls/certs/httpd.crt
+
+vi /etc/httpd/conf.d/ssl.conf
+
+systemctl restart httpd
+
+---------------------------------------------------------------------
+
+INSTALL PHP 7.2
+
+dnf install dnf-utils http://rpms.remirepo.net/enterprise/remi-release-8.rpm -y
+
+dnf module list php
+
+dnf module reset php -y
+
+dnf module enable php:remi-7.2 -y
+
+dnf install php -y
+
+
+dnf install php-mysql
+
+dnf install php-mysqli
+
+dnf install php-mbstring
+
+dnf install php-imap
+
+dnf install php-pdo
+
+systemctl restart httpd
+
+---------------------------------------------------------------------
+
+
+INSTALL MYSQL COMMUNITY 5.7
+
+
+
+dnf remove @mysql
+dnf module reset mysql && sudo dnf module disable mysql
+
+
+vi /etc/yum.repos.d/mysql-community.repo
+
+INSERT:
+
+[mysql57-community]
+name=MySQL 5.7 Community Server
+baseurl=http://repo.mysql.com/yum/mysql-5.7-community/el/7/$basearch/
+enabled=1
+gpgcheck=0
+
+[mysql-connectors-community]
+name=MySQL Connectors Community
+baseurl=http://repo.mysql.com/yum/mysql-connectors-community/el/7/$basearch/
+enabled=1
+gpgcheck=0
+
+[mysql-tools-community]
+name=MySQL Tools Community
+baseurl=http://repo.mysql.com/yum/mysql-tools-community/el/7/$basearch/
+enabled=1
+gpgcheck=0
+
+
+
+dnf config-manager --disable mysql80-community
+
+dnf config-manager --enable mysql57-community
+
+
+dnf install mysql-community-server
+
+
+rpm -qi mysql-community-server 
+
+systemctl enable --now mysqld.service
+
+grep 'A temporary password' /var/log/mysqld.log |tail -1
+
+mysql_secure_installation
+
+
+
+firewall-cmd --add-service=mysql --permanent
+
+
+firewall-cmd --reload
+
+-----------------------------------------------------
+INSTALL PHPMYADMIN
+
+cd /home
+
+mkdir download
+
+mkdir /usr/share/phpmyadmin
+
+mkdir /usr/share/phpmyadmin/tmp
+
+cd /download
+
+yum install wget
+
+wget https://files.phpmyadmin.net/phpMyAdmin/4.9.5/phpMyAdmin-4.9.5-all-languages.zip
+
+
+unzip phpMyAdmin-4.9.5-all-languages.zip
+
+cd phpMyAdmin-4.9.5-all-languages
+
+mv * /usr/share/phpmyadmin
+
+cd /usr/share/phpmyadmin
+
+mv config.sample.inc.php config.inc.php
+
+vi /usr/share/phpmyadmin/config.inc.php
+
+
+insert:
+
+$cfg['blowfish_secret'] = 'bo95yavJ;V,1PzSlxyFwtyMJ}WmG98-6'; /* YOU MUST FILL IN THIS FOR COOKIE AUTH! */
+
+$cfg['TempDir'] = '/var/tmp/phpmyadmin/tmp/';
+
+
+
+chown -R apache:apache /usr/share/phpmyadmin
+
+chmod 777 /usr/share/phpmyadmin/tmp
+
+
+
+vi /etc/httpd/conf.d/phpmyadmin.conf
+
+
+INSERT:
+
+Alias /phpmyadmin /usr/share/phpmyadmin
+
+<Directory /usr/share/phpmyadmin/>
+   AddDefaultCharset UTF-8
+   <IfModule mod_authz_core.c>
+     # Apache 2.4
+     <RequireAny>
+      Require all granted
+     </RequireAny>
+   </IfModule>
+</Directory>
+
+<Directory /usr/share/phpmyadmin/setup/>
+   <IfModule mod_authz_core.c>
+ # Apache 2.4
+     <RequireAny>
+       Require all granted
+     </RequireAny>
+   </IfModule>
+</Directory>
+
+
+
+semanage fcontext -a -t httpd_sys_rw_content_t '/usr/share/phpmyadmin/'
+
+semanage fcontext -a -t httpd_sys_rw_content_t "/usr/share/phpmyadmin/tmp(/.*)?"
+
+restorecon -Rv '/usr/share/phpmyadmin/'
+
+
+----------------------------------------------
+
+INSTALL VSFTPD
+
+dnf install vsftpd
+
+systemctl enable vsftpd --now
+
+systemctl status vsftpd
+
+
+vi /etc/vsftpd/vsftpd.conf
+
+systemctl restart vsftpd
+
+firewall-cmd --permanent --add-port=20-21/tcp
+
+firewall-cmd --permanent --add-port=30000-31000/tcp
+
+
+systemctl restart vsftpd
+
